@@ -143,7 +143,11 @@
     border-color:var(--accent);
     box-shadow:0 0 0 3px rgba(232,184,75,0.15);
   }
-  .controls select{cursor:pointer;}
+  .controls select{cursor:pointer;flex:1;min-width:150px;}
+
+  .clear-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:-14px 0 24px;}
+  .clear-row button{background:none;border:none;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;font-size:11.5px;text-decoration:underline;cursor:pointer;padding:4px;}
+  .clear-row button:hover{color:var(--accent);}
 
   .search-wrap{position:relative;flex:1;min-width:180px;}
   .search-wrap input{width:100%;padding-right:36px;}
@@ -422,24 +426,27 @@
     <select id="f-teamB" aria-label="Team B"></select>
   </div>
 
-  <section class="controls">
-    <div class="search-wrap" id="browse-search-wrap">
-      <input id="search" type="text" placeholder="Search a club&hellip;" aria-label="Search a club" autocomplete="off">
-      <button id="clear-search" type="button" aria-label="Clear search" style="display:none;">&times;</button>
-      <div id="suggestions" class="suggestions" hidden></div>
-    </div>
-    <select id="comp-filter" aria-label="Filter by competition">
-      <option value="">All competitions</option>
+  <section class="controls" id="browse-search-wrap">
+    <select id="f-team" aria-label="Team">
+      <option value="">Any team</option>
     </select>
     <select id="status-filter" aria-label="Show results, fixtures, or all">
       <option value="results">Results</option>
       <option value="fixtures">Fixtures</option>
       <option value="all">All</option>
     </select>
+    <select id="comp-filter" aria-label="Filter by competition">
+      <option value="">All competitions</option>
+    </select>
     <select id="jersey-filter" aria-label="Filter by jersey">
       <option value="">Any jersey</option>
     </select>
   </section>
+
+  <div class="clear-row">
+    <span></span>
+    <button id="clear-filters">Clear all filters</button>
+  </div>
 
   <section class="jersey-stats" id="jersey-stats" hidden></section>
 
@@ -577,12 +584,11 @@ function compCode(c){ if(!c) return ''; return COMP_CODE[c] || c.split(' ').map(
 
 const listEl = document.getElementById('list');
 const matchupEl = document.getElementById('matchup');
-const searchEl = document.getElementById('search');
 const compEl = document.getElementById('comp-filter');
 const statusFilterEl = document.getElementById('status-filter');
 const jerseyFilterEl = document.getElementById('jersey-filter');
-const suggestionsEl = document.getElementById('suggestions');
-const clearBtn = document.getElementById('clear-search');
+const fTeam = document.getElementById('f-team');
+const clearBtn = document.getElementById('clear-filters');
 const statsEl = document.getElementById('jersey-stats');
 const modeBrowseBtn = document.getElementById('mode-browse');
 const modeH2hBtn = document.getElementById('mode-h2h');
@@ -593,56 +599,17 @@ const fTeamB = document.getElementById('f-teamB');
 let mode = 'browse';
 let activeIndex = 0;
 let filtered = MATCHES;
-let selectedTeam = null;   // set when the user picks an exact team from the dropdown
-let highlightIdx = -1;     // keyboard highlight within the suggestions list
-
-// Strip accents so "sao tome" matches "São Tomé e Príncipe", "turkiye" matches "Türkiye", etc.
-function normalizeText(s){
-  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-}
-
-// Groups of alternate names that should all match each other, for cases where the name
-// itself changed (not just accents) - e.g. common name vs. current official name.
-const ALIAS_GROUPS = [
-  ['turkey','turkiye'],
-  ['czech republic','czechia'],
-  ['ivory coast',"cote d'ivoire",'cote divoire'],
-  ['cape verde','cabo verde'],
-  ['myanmar','burma'],
-  ['netherlands','holland'],
-  ['united states','usa','america','united states of america'],
-  ['south korea','korea republic'],
-  ['north korea','korea dpr'],
-  ['dem. rep. of congo','democratic republic of congo','dr congo','congo-kinshasa','congo kinshasa'],
-  ['congo','republic of congo','congo-brazzaville','congo brazzaville'],
-  ['ireland','republic of ireland'],
-  ['st martin','saint martin'],
-  ['st lucia','saint lucia'],
-  ['st vincent','saint vincent','saint vincent and the grenadines'],
-  ['st kitts & nevis','saint kitts and nevis','saint kitts & nevis'],
-  ['antigua & barbuda','antigua and barbuda'],
-  ['trinidad & tobago','trinidad and tobago'],
-  ['bosnia & herzegovina','bosnia and herzegovina'],
-];
-function aliasVariants(normalized){
-  const group = ALIAS_GROUPS.find(g => g.includes(normalized));
-  return group || [normalized];
-}
-// true if the (normalized) query matches the (normalized) team name, directly or via alias
-function textMatches(normQuery, normTeam){
-  if(!normQuery) return true;
-  if(normTeam.includes(normQuery)) return true;
-  return aliasVariants(normQuery).some(v => normTeam.includes(v));
-}
 
 let TEAM_LIST = [];
 function refreshTeamList(){
   TEAM_LIST = [...new Set(MATCHES.flatMap(m => [m.home, m.away]))].sort();
-  const curA = fTeamA.value, curB = fTeamB.value;
+  const curA = fTeamA.value, curB = fTeamB.value, curT = fTeam.value;
   fTeamA.innerHTML = TEAM_LIST.map(t => `<option value="${t}">${t}</option>`).join('');
   fTeamB.innerHTML = TEAM_LIST.map(t => `<option value="${t}">${t}</option>`).join('');
+  fTeam.innerHTML = '<option value="">Any team</option>' + TEAM_LIST.map(t => `<option value="${t}">${t}</option>`).join('');
   if(TEAM_LIST.includes(curA)) fTeamA.value = curA;
   if(TEAM_LIST.includes(curB)) fTeamB.value = curB;
+  if(TEAM_LIST.includes(curT)) fTeam.value = curT;
 
   refreshJerseyFilterOptions();
 }
@@ -651,11 +618,11 @@ function refreshTeamList(){
 // actually worn - not every bucket that exists across the whole competition history.
 function refreshJerseyFilterOptions(){
   const curJ = jerseyFilterEl.value;
-  const scoped = (mode === 'browse' && selectedTeam)
-    ? MATCHES.filter(m => m.home === selectedTeam || m.away === selectedTeam)
+  const scoped = (mode === 'browse' && fTeam.value)
+    ? MATCHES.filter(m => m.home === fTeam.value || m.away === fTeam.value)
     : MATCHES;
-  const buckets = (mode === 'browse' && selectedTeam)
-    ? scoped.map(m => jerseyBucket(m.home === selectedTeam ? m.homeJersey : m.awayJersey))
+  const buckets = (mode === 'browse' && fTeam.value)
+    ? scoped.map(m => jerseyBucket(m.home === fTeam.value ? m.homeJersey : m.awayJersey))
     : scoped.flatMap(m => [jerseyBucket(m.homeJersey), jerseyBucket(m.awayJersey)]);
   const jerseyValues = KNOWN_JERSEYS.filter(j => buckets.includes(j));
   if(buckets.includes('Other')) jerseyValues.push('Other');
@@ -669,7 +636,7 @@ function setMode(m){
   modeBrowseBtn.classList.toggle('active', m === 'browse');
   modeH2hBtn.classList.toggle('active', m === 'h2h');
   h2hRowEl.style.display = m === 'h2h' ? 'grid' : 'none';
-  browseSearchWrapEl.style.display = m === 'browse' ? 'block' : 'none';
+  browseSearchWrapEl.style.display = m === 'browse' ? 'flex' : 'none';
   refreshJerseyFilterOptions();
   applyFilters();
 }
@@ -677,14 +644,15 @@ modeBrowseBtn.addEventListener('click', () => setMode('browse'));
 modeH2hBtn.addEventListener('click', () => setMode('h2h'));
 fTeamA.addEventListener('change', applyFilters);
 fTeamB.addEventListener('change', applyFilters);
+fTeam.addEventListener('change', () => { refreshJerseyFilterOptions(); applyFilters(); });
 jerseyFilterEl.addEventListener('change', applyFilters);
 
 function matchesJerseyFilter(m){
   const jf = jerseyFilterEl.value;
   if(!jf) return true;
-  if(mode === 'browse' && selectedTeam){
-    if(m.home !== selectedTeam && m.away !== selectedTeam) return false;
-    return jerseyBucket(m.home === selectedTeam ? m.homeJersey : m.awayJersey) === jf;
+  if(mode === 'browse' && fTeam.value){
+    if(m.home !== fTeam.value && m.away !== fTeam.value) return false;
+    return jerseyBucket(m.home === fTeam.value ? m.homeJersey : m.awayJersey) === jf;
   }
   const hb = jerseyBucket(m.homeJersey), ab = jerseyBucket(m.awayJersey);
   return hb === jf || ab === jf;
@@ -821,15 +789,8 @@ function applyFilters(){
       return isPairing && matchesComp && matchesJerseyFilter(m);
     });
   } else {
-    const rawQ = searchEl.value.trim();
-    const q = normalizeText(rawQ);
     base = MATCHES.filter(m => {
-      let matchesQ;
-      if(selectedTeam){
-        matchesQ = (m.home === selectedTeam || m.away === selectedTeam);
-      } else {
-        matchesQ = !q || textMatches(q, normalizeText(m.home)) || textMatches(q, normalizeText(m.away));
-      }
+      const matchesQ = !fTeam.value || m.home === fTeam.value || m.away === fTeam.value;
       const matchesComp = !comp || m.comp === comp;
       return matchesQ && matchesComp && matchesJerseyFilter(m);
     });
@@ -849,7 +810,6 @@ function applyFilters(){
   else matchupEl.innerHTML = `<p style="text-align:center;color:var(--text-dim);font-size:13.5px;padding:20px;">No matches found for this combination.</p>`;
   renderList();
   renderJerseyStats();
-  clearBtn.style.display = searchEl.value ? 'block' : 'none';
 }
 
 // Default to Results if any games have been played yet, otherwise Fixtures (nothing to show in Results).
@@ -858,90 +818,27 @@ function setDefaultStatus(){
   statusFilterEl.value = anyPlayed ? 'results' : 'fixtures';
 }
 
-// ---------- Autocomplete suggestions ----------
-function renderSuggestions(){
-  const rawQ = searchEl.value.trim();
-  const q = normalizeText(rawQ);
-  if(!q || selectedTeam){ suggestionsEl.hidden = true; return; }
-
-  const matches = TEAM_LIST.filter(t => textMatches(q, normalizeText(t))).slice(0, 8);
-  if(matches.length === 0){ suggestionsEl.hidden = true; return; }
-
-  highlightIdx = -1;
-  suggestionsEl.innerHTML = matches.map((t, i) => {
-    const count = MATCHES.filter(m => m.home === t || m.away === t).length;
-    return `<div class="suggestion" data-team="${t}" data-i="${i}"><span>${t}</span><span class="sc">${count} matches</span></div>`;
-  }).join('');
-  suggestionsEl.hidden = false;
-
-  suggestionsEl.querySelectorAll('.suggestion').forEach(el => {
-    el.addEventListener('click', () => pickTeam(el.dataset.team));
-  });
-}
-
-function pickTeam(team){
-  selectedTeam = team;
-  searchEl.value = team;
-  suggestionsEl.hidden = true;
-  refreshJerseyFilterOptions();
-  applyFilters();
-}
-
-function clearSearch(){
-  selectedTeam = null;
-  searchEl.value = '';
-  suggestionsEl.hidden = true;
-  refreshJerseyFilterOptions();
-  applyFilters();
-  searchEl.focus();
-}
-
-searchEl.addEventListener('input', () => {
-  if(selectedTeam && searchEl.value !== selectedTeam){ selectedTeam = null; refreshJerseyFilterOptions(); }
-  renderSuggestions();
-  applyFilters();
-});
-
-searchEl.addEventListener('keydown', (e) => {
-  const items = suggestionsEl.querySelectorAll('.suggestion');
-  if(suggestionsEl.hidden || items.length === 0) return;
-  if(e.key === 'ArrowDown'){
-    e.preventDefault();
-    highlightIdx = Math.min(highlightIdx + 1, items.length - 1);
-  } else if(e.key === 'ArrowUp'){
-    e.preventDefault();
-    highlightIdx = Math.max(highlightIdx - 1, 0);
-  } else if(e.key === 'Enter'){
-    if(highlightIdx >= 0){ e.preventDefault(); pickTeam(items[highlightIdx].dataset.team); }
-    return;
-  } else if(e.key === 'Escape'){
-    suggestionsEl.hidden = true;
-    return;
-  } else {
-    return;
-  }
-  items.forEach((el, i) => el.classList.toggle('highlighted', i === highlightIdx));
-  items[highlightIdx].scrollIntoView({block:'nearest'});
-});
-
-document.addEventListener('click', (e) => {
-  if(!e.target.closest('.search-wrap')) suggestionsEl.hidden = true;
-});
-
-clearBtn.addEventListener('click', clearSearch);
 compEl.addEventListener('change', applyFilters);
 statusFilterEl.addEventListener('change', applyFilters);
+clearBtn.addEventListener('click', () => {
+  fTeam.value = '';
+  jerseyFilterEl.value = '';
+  compEl.value = '';
+  refreshJerseyFilterOptions();
+  setDefaultStatus();
+  applyFilters();
+});
 
 // ---------- Jersey stats table for the selected team ----------
 const KNOWN_JERSEYS = ['Home','Away','Third','Fourth','Anniversary'];
 function jerseyBucket(j){ return j && KNOWN_JERSEYS.includes(j) ? j : (j ? 'Other' : 'Unknown'); }
 
 function renderJerseyStats(){
-  if(!selectedTeam){ statsEl.hidden = true; statsEl.innerHTML = ''; return; }
+  if(!fTeam.value){ statsEl.hidden = true; statsEl.innerHTML = ''; return; }
 
   const comp = compEl.value;
   const teamMatches = MATCHES.filter(m =>
-    (m.home === selectedTeam || m.away === selectedTeam) && (!comp || m.comp === comp)
+    (m.home === fTeam.value || m.away === fTeam.value) && (!comp || m.comp === comp)
   );
 
   const buckets = {};
@@ -950,7 +847,7 @@ function renderJerseyStats(){
   });
 
   teamMatches.forEach(m => {
-    const isHome = m.home === selectedTeam;
+    const isHome = m.home === fTeam.value;
     const jersey = isHome ? m.homeJersey : m.awayJersey;
     const bucket = jerseyBucket(jersey);
     const gf = isHome ? m.homeScore : m.awayScore;
@@ -988,7 +885,7 @@ function renderJerseyStats(){
 
   statsEl.innerHTML = `
     <button class="stats-toggle" id="stats-toggle" aria-expanded="false">
-      <span>${selectedTeam} \u2014 jersey breakdown${comp ? ' (' + compCode(comp) + ')' : ''}</span><i class="ti ti-chevron-down"></i>
+      <span>${fTeam.value} \u2014 jersey breakdown${comp ? ' (' + compCode(comp) + ')' : ''}</span><i class="ti ti-chevron-down"></i>
     </button>
     <div class="stats-body" id="stats-body" hidden>
       <table>
