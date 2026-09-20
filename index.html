@@ -638,6 +638,8 @@ async function loadLiveData(){
     setDefaultYear();
     setDefaultStatus();
     applyFilters();
+    setDefaultLadderComp();
+    renderJerseyLadder();
 
     const now = new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
     statusEl.innerHTML = `<span style="color:var(--win)">&#9679;</span> Live data &mdash; updated ${now}`;
@@ -729,6 +731,11 @@ function refreshTeamList(){
 function setDefaultYear(){
   const years = [...new Set(MATCHES.map(m => m.year).filter(Boolean))].sort((a,b) => b - a);
   fYear.value = years.length ? String(years[0]) : '';
+}
+// The ladder should default to EPL, not every competition lumped together - a one-off
+// Community Shield curtain-raiser shouldn't count toward the main league ladder by default.
+function setDefaultLadderComp(){
+  if([...fLadderComp.options].some(o => o.value === 'EPL')) fLadderComp.value = 'EPL';
 }
 
 function updateJerseyFilterBtnLabel(){
@@ -1133,6 +1140,8 @@ refreshTeamList();
 setDefaultYear();
 setDefaultStatus();
 applyFilters();
+setDefaultLadderComp();
+renderJerseyLadder();
 
 ladderToggle.addEventListener('click', () => {
   const open = !ladderBody.hidden;
