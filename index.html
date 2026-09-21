@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="A fan-made tracker of jerseys worn in international football matches. Browse match results and kits by team and competition. No products are sold here.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23E8B84B' stroke-width='2'%3E%3Cpath d='M4 5l4-2 4 2 4-2 4 2v3l-3 1v11H7V9L4 8z'/%3E%3C/svg%3E">
-<title>Kit Tracker</title>
+<title>Premier League Jersey Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.46.0/tabler-icons.min.css">
@@ -335,7 +335,7 @@
   .list-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;}
   .list-head, .row{
     display:grid;
-    grid-template-columns: 78px 76px 1fr 30px 12px 30px 1fr 76px 52px 34px;
+    grid-template-columns: 78px 76px 1fr 30px 12px 30px 1fr 76px 52px 40px 34px;
     gap:6px;
     align-items:center;
   }
@@ -401,6 +401,12 @@
     cursor:help;
     text-transform:uppercase;
   }
+  .row .c-mw{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--text-dim);
+    text-align:center;
+  }
   .c-photos{display:flex;gap:3px;justify-content:center;}
   .photo-dot{width:7px;height:7px;border-radius:50%;background:var(--loss);}
   .photo-dot.filled{background:var(--win);}
@@ -410,8 +416,8 @@
   .jname-short{display:none;}
   @media (max-width:760px){
     .list-head, .row{grid-template-columns: 34px 1fr 22px 10px 22px 1fr 34px 34px;}
-    .list-head span:nth-child(1), .list-head span:nth-child(10),
-    .row .c-date, .row .c-photos{display:none;}
+    .list-head span:nth-child(1), .list-head span:nth-child(10), .list-head span:nth-child(11),
+    .row .c-date, .row .c-mw, .row .c-photos{display:none;}
     .jname-full{display:none;}
     .jname-short{display:inline;}
   }
@@ -506,7 +512,7 @@
 
   <section class="list-wrap">
     <div class="list-head">
-      <span>Date</span><span>Jersey</span><span style="text-align:right">Home</span><span>HS</span><span></span><span>AS</span><span>Away</span><span>Jersey</span><span style="text-align:center">Comp</span><span style="text-align:center">Photos</span>
+      <span>Date</span><span>Jersey</span><span style="text-align:right">Home</span><span>HS</span><span></span><span>AS</span><span>Away</span><span>Jersey</span><span style="text-align:center">Comp</span><span style="text-align:center">MW</span><span style="text-align:center">Photos</span>
     </div>
     <div class="list-scroll"><div id="list"></div></div>
   </section>
@@ -918,6 +924,7 @@ function renderList(){
         <span class="c-away ${resultClass(ar)}">${m.away}</span>
         <span class="jcode" title="${jerseyLabel(m.awayJersey)} jersey"><span class="jname-full">${jerseyCode(m.awayJersey)}</span><span class="jname-short">${jerseyAbbrev(m.awayJersey)}</span></span>
         <span class="c-comp" title="${m.comp || ''}${m.stage ? ' \u2014 ' + m.stage : ''}">${compCode(m.comp)}</span>
+        <span class="c-mw" title="${m.stage || ''}">${m.stage ? m.stage.replace('Matchweek ', 'MW') : ''}</span>
         <span class="c-photos"><span class="photo-dot ${m.homeImg?'filled':''}"></span><span class="photo-dot ${m.awayImg?'filled':''}"></span></span>
       </div>`;
   }).join('');
